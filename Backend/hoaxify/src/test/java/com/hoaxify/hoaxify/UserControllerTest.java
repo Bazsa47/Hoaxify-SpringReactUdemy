@@ -1,10 +1,9 @@
 package com.hoaxify.hoaxify;
 
-import com.hoaxify.hoaxify.User.User;
-import com.hoaxify.hoaxify.User.UserRepository;
-import com.hoaxify.hoaxify.User.UserService;
+import com.hoaxify.hoaxify.User.*;
 import com.hoaxify.hoaxify.error.ApiError;
 import com.hoaxify.hoaxify.shared.GenericResponse;
+import org.apache.commons.io.FileUtils;
 import org.apache.coyote.Response;
 import org.apiguardian.api.API;
 import org.junit.Before;
@@ -16,7 +15,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.domain.Page;
+import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -24,6 +25,8 @@ import org.springframework.http.client.support.BasicAuthenticationInterceptor;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.junit4.SpringRunner;
 
+import java.io.IOException;
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -58,9 +61,25 @@ public class UserControllerTest {
         return testRestTemplate.exchange(path,HttpMethod.GET,null,responseType);
     }
 
+    public <T> ResponseEntity<T> putUser(long id, HttpEntity<?> requestEntity, Class<T> responseType){
+        String path= API_1_0_USERS + "/"+id;
+        return testRestTemplate.exchange(path,HttpMethod.PUT,requestEntity,responseType);
+    }
+
     private void authenticate(String username) {
         //Vmi a headerrel
         testRestTemplate.getRestTemplate().getInterceptors().add(new BasicAuthenticationInterceptor(username,"P4ssword"));
+    }
+
+    private UserUpdateVM createValidUserUpdateVM() {
+        UserUpdateVM updateUser = new UserUpdateVM();
+        updateUser.setDisplayName("nesDisplayName");
+        return updateUser;
+    }
+
+    public <T> ResponseEntity<T> getUserByName(String username, Class<T> responseType){
+        String path = API_1_0_USERS+"/"+username;
+        return testRestTemplate.getForEntity(path,responseType);
     }
 
     @Before
@@ -341,4 +360,123 @@ public class UserControllerTest {
         ResponseEntity<TestPage<Object>> response = getUsers( new ParameterizedTypeReference<TestPage<Object>>(){});
         assertThat(response.getBody().getTotalElements()).isEqualTo(2);
     }
+
+    @Test
+    public void getUserByUsername_whenUserExists_receiveOk() {
+        String username = "test-user";
+        userService.save(TestUtil.getUser(username));
+        ResponseEntity<Object> result = getUserByName(username, Object.class);
+        assertThat(result.getStatusCode()).isEqualTo(HttpStatus.OK);
+    }
+
+    @Test
+    public void getUserByUsername_whenUserExists_receiveUserWithoutPassword() {
+        String username = "test-user";
+        userService.save(TestUtil.getUser(username));
+        ResponseEntity<String> result = getUserByName(username, String.class);
+        assertThat(result.getBody().contains("password")).isFalse();
+    }
+
+    @Test
+    public void getUserByUsername_whenUserDoesNotExists_receiveNotFound() {
+        ResponseEntity<Object> result = getUserByName("notexisting", Object.class);
+        assertThat(result.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
+    @Test
+    public void getUserByUsername_whenUserDoesNotExists_receiveApiError() {
+        ResponseEntity<ApiError> result = getUserByName("notexisting", ApiError.class);
+        assertThat(result.getBody().getMessage().contains("notexisting")).isTrue();
+    }
+
+    @Test
+    public void putUser_whenUnauthorizedUserSendsTheRequest_receiveUnauthorized() {
+        ResponseEntity<Object> response = putUser(123,null,Object.class);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+    }
+
+    @Test
+    public void putUser_whenAuthorizedUserSendsUpdateForAnotherUser_receiveForbidden() {
+        User user = userService.save(TestUtil.getUser("user1"));
+        authenticate(user.getUsername());
+
+        long anotherUserId = user.getId()+123;
+        ResponseEntity<Object> response = putUser(anotherUserId,null,Object.class);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    public void putUser_whenUnauthorizedUserSendsTheRequest_receiveApiError() {
+        ResponseEntity<ApiError> response = putUser(123,null,ApiError.class);
+        assertThat(response.getBody().getUrl()).contains("users/123");
+    }
+
+    @Test
+    public void putUser_whenAuthorizedUserSendsUpdateForAnotherUser_receiveApiError() {
+        User user = userService.save(TestUtil.getUser("user1"));
+        authenticate(user.getUsername());
+
+        long anotherUserId = user.getId()+123;
+        ResponseEntity<ApiError> response = putUser(anotherUserId,null,ApiError.class);
+        assertThat(response.getBody().getUrl()).contains("users/"+anotherUserId);
+    }
+
+    @Test
+    public void putUser_withValidRequestBodyFromAuthorizedUser_ReceiveOk() {
+        User user = userService.save(TestUtil.getUser("user1"));
+        authenticate(user.getUsername());
+        UserUpdateVM updateUser = createValidUserUpdateVM();
+
+        HttpEntity<UserUpdateVM> requestEntity = new HttpEntity<>(updateUser);
+        ResponseEntity<Object> response = putUser(user.getId(),requestEntity,Object.class);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+    }
+
+    @Test
+    public void putUser_withValidRequestBodyFromAuthorizedUser_displayNameUpdated() {
+        User user = userService.save(TestUtil.getUser("user1"));
+        authenticate(user.getUsername());
+        UserUpdateVM updateUser = createValidUserUpdateVM();
+
+        HttpEntity<UserUpdateVM> requestEntity = new HttpEntity<>(updateUser);
+        putUser(user.getId(),requestEntity,Object.class);
+
+        User userInDB = userRepository.findByUsername("user1");
+        assertThat(userInDB.getDisplayName()).isEqualTo(updateUser.getDisplayName());
+    }
+
+    @Test
+    public void putUser_withValidRequestBodyFromAuthorizedUser_receiveUserVMWithUpdatedDisplayName() {
+        User user = userService.save(TestUtil.getUser("user1"));
+        authenticate(user.getUsername());
+
+        UserUpdateVM updateUser = createValidUserUpdateVM();
+
+        HttpEntity<UserUpdateVM> requestEntity = new HttpEntity<>(updateUser);
+        ResponseEntity<UserVM> response = putUser(user.getId(), requestEntity, UserVM.class);
+
+        assertThat(response.getBody().getDisplayName()).isEqualTo(updateUser.getDisplayName());
+    }
+
+    /*@Test
+    public void putUser_withValidRequestBodyWithSupportedImageFromAuthorizedUser_receiveUserVMWithRandomImageName() throws IOException {
+        User user = userService.save(TestUtil.getUser("user1"));
+        authenticate(user.getUsername());
+        UserUpdateVM updateUser = createValidUserUpdateVM();
+
+        ClassPathResource imageResource = new ClassPathResource("profile.png");
+
+        byte[] imageArr = FileUtils.readFileToByteArray(imageResource.getFile());
+        String imageString = Base64.getEncoder().encodeToString(imageArr);
+        updateUser.setImage(imageString);
+
+        HttpEntity<UserUpdateVM> requestEntity = new HttpEntity<>(updateUser);
+        ResponseEntity<UserVM> response = putUser(user.getId(), requestEntity, UserVM.class);
+
+        assertThat(response.getBody().getImage()).isNotEqualTo("profile-image.png");
+    } */
+
+
+
+
 }

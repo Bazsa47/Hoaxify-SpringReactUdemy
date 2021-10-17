@@ -56,4 +56,24 @@ describe('apiCalls', () => {
             expect(mockListUsers).toBeCalledWith('api/1.0/users?page=0&size=5');
         })
     })
+    describe("get user",()=>{
+        it('calls /api/1.0/users/user5 when user5 is provided for getUser',()=>{
+            const mockGetUser = jest.fn();
+            axios.get = mockGetUser;
+            apiCalls.getUser('user5');
+            expect(mockGetUser).toBeCalledWith('/api/1.0/users/user5');
+        })
+    })
+
+    describe('updateUser', () => {
+
+        it('calls /api/1.0/users/5 when 5 is provided for id', () => {
+            const mockUpdate = jest.fn();
+            axios.put = mockUpdate;
+            apiCalls.updateUser('5');
+
+            const path = mockUpdate.mock.calls[0][0]
+            expect(path).toBe('/api/1.0/users/5');
+        })
+    })
 })

@@ -1,12 +1,12 @@
 package com.hoaxify.hoaxify.User;
 
-import org.springframework.beans.factory.annotation.Autowired;
+import com.hoaxify.hoaxify.error.NotFoundException;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+
+import java.util.UUID;
 
 @Service
 public class UserService {
@@ -29,5 +29,20 @@ public class UserService {
         if (loggedInUser != null)
             return userRepository.findByUsernameNot(loggedInUser.getUsername(), pageable);
         return userRepository.findAll(pageable);
+    }
+
+    public User getByUsername(String username) {
+        User userInDB = userRepository.findByUsername(username);
+        if (userInDB==null) throw new NotFoundException(username + " not found!");
+        return userInDB;
+    }
+
+    public User update(long id, UserUpdateVM userUpdate) {
+        User inDb = userRepository.getById(id);
+        inDb.setDisplayName(userUpdate.getDisplayName());
+
+        String savedImageName = inDb.getUsername() + UUID.randomUUID().toString().replaceAll("-","");
+        inDb.setImage(savedImageName);
+        return userRepository.save(inDb);
     }
 }

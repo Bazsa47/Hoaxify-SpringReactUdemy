@@ -15,11 +15,46 @@ apiCalls.listUsers = jest.fn().mockResolvedValue({
     }
 })
 
+apiCalls.getUser = jest.fn().mockResolvedValue({
+    data:{
+        id:1,
+        username:'user1',
+        displayName:'display1',
+        image:'profile1.png'
+    }
+});
+
 
 beforeEach(()=>{
     localStorage.clear();
     delete axios.defaults.headers.common['Authorization']
 })
+
+const mockSuccessGetUSer1= {
+    data:{
+        id:1,
+        username:'user1',
+        displayName:'display1',
+        image:'profile1.png'
+    }
+}
+
+const mockSuccessGetUSer2= {
+    data:{
+        id:2,
+        username:'user2',
+        displayName:'display2',
+        image:'profile2.png'
+    }
+}
+
+const mockFailGetUser = {
+    response:{
+        data:{
+            message:"User not found"
+        }
+    }
+}
 
 describe('App',()=>{
 
@@ -43,6 +78,16 @@ describe('App',()=>{
         };
       };
 
+      const setUserOneLoggedInStorage = ()=> {
+        localStorage.setItem('hoax-auth',JSON.stringify({
+            id:1,
+            username:'user1',
+            displayName:'display1',
+            image:'profile1.png',
+            password:'P4ssword',
+            isLoggedIn: true
+        }))
+      }
 
     it('displays home page when url is /',()=>{
         const {queryByTestId} =  setup('/');
@@ -220,14 +265,7 @@ describe('App',()=>{
     }) */
 
     it('displays logged in top bar when storage has logged in user data',()=>{
-        localStorage.setItem('hoax-auth',JSON.stringify({
-            id:1,
-            username:'user1',
-            displayName:'display1',
-            image:'profile1.png',
-            password:'P4ssword',
-            isLoggedIn: true
-        }))
+        setUserOneLoggedInStorage() 
         const {queryByText} = setup('/')
         const profileLink = queryByText('Profile');
         expect(profileLink).toBeInTheDocument();
@@ -271,14 +309,7 @@ describe('App',()=>{
     }) */
 
     it('sets axios authorization with base64 encoded user credentials when storage has logged in user data',()=>{
-        localStorage.setItem('hoax-auth',JSON.stringify({
-            id:1,
-            username:'user1',
-            displayName:'display1',
-            image:'profile1.png',
-            password:'P4ssword',
-            isLoggedIn: true
-        }))
+        setUserOneLoggedInStorage();
         setup('/')
         const axiosAuthorization = axios.defaults.headers.common['Authorization'];
 
@@ -288,20 +319,41 @@ describe('App',()=>{
     })
 
     it('removes axios authorization with base64 encoded user credentials when user logs out',()=>{
-        localStorage.setItem('hoax-auth',JSON.stringify({
-            id:1,
-            username:'user1',
-            displayName:'display1',
-            image:'profile1.png',
-            password:'P4ssword',
-            isLoggedIn: true
-        }))
+        setUserOneLoggedInStorage();
         const {queryByText} = setup('/')
         fireEvent.click(queryByText('Logout'))
 
         const axiosAuthorization = axios.defaults.headers.common['Authorization'];
         expect(axiosAuthorization).toBeFalsy();
     })
+    /*
+    it('updates user page after clicking my profile when another user page was opened',async ()=>{
+        apiCalls.getUser=jest.fn().mockResolvedValue(mockSuccessGetUSer2).mockResolvedValue(mockSuccessGetUSer1);
+        setUserOneLoggedInStorage();
+        const {queryByText} = setup('/user2')
+
+        await waitForElement(()=>queryByText('display2@user2'));
+        const profileLink = queryByText("Profile");
+        fireEvent.click(profileLink);
+
+        const userInfo1 = await waitForElement(()=>queryByText('display1@user1'));
+
+        expect(userInfo1).toBeInTheDocument();
+    })
+
+    it('updates user page after clicking my profile when another non existing user page was opened',async ()=>{
+        apiCalls.getUser=jest.fn().mockResolvedValue(mockFailGetUSer1).mockResolvedValue(mockSuccessGetUSer1);
+        setUserOneLoggedInStorage();c
+        const {queryByText} = setup('/user50')
+
+        await waitForElement(()=>queryByText('User not found'));
+        const profileLink = queryByText("Profile");
+        fireEvent.click(profileLink);
+
+        const userInfo1 = await waitForElement(()=>queryByText('display1@user1'));
+
+        expect(userInfo1).toBeInTheDocument();
+    }) */
 })
 
 console.error = () => {};
