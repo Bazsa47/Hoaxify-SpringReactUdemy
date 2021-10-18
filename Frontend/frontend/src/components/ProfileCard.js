@@ -16,7 +16,7 @@ const ProfileCard = (props) => {
                 width="200" 
                 height ="200"
                 className ="rounded-circle shadow"
-                
+                src={props.loadedImage}
                 />
             </div>
             <div className="card-body text-center">
@@ -26,7 +26,17 @@ const ProfileCard = (props) => {
                                             value={displayName}
                                             label={`Change Display Name for ${username}`}
                                             onChange= {props.onChangeDisplayName}
+                                            hasError={props.errors.displayName && true}
+                                            error={props.errors.displayName}
                                         />
+                                        <div className="mt-2">
+                                            <Input 
+                                                type="file" 
+                                                onChange={props.onFileSelect}
+                                                hasError={props.errors.image && true}
+                                                error={props.errors.image}
+                                            />
+                                        </div>
                                   </div>}
                 {showEditButton && <button className="btn btn-outline-success" onClick={props.onClickEdit}>
                     <i className="fas fa-user-edit"/>Edit
@@ -54,5 +64,8 @@ const ProfileCard = (props) => {
         </div>
     );
 };
+ProfileCard.defaultProps =  {
+    errors: {}
+}
 
 export default ProfileCard;

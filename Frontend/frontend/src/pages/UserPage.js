@@ -11,7 +11,9 @@ class UserPage extends React.Component{
         isLoading:false,
         editMode: false,
         originalDisplayname: undefined,
-        pendingUpdateCall: false
+        pendingUpdateCall: false,
+        image: undefined,
+        errors: {}
     }
 
     onClickEdit = () =>{
@@ -28,20 +30,42 @@ class UserPage extends React.Component{
         this.setState({
             user,
             originalDisplayname : undefined,
-            editMode:false
+            editMode:false,
+            image:undefined,
+            errors: {}
         });
+    }
+
+    onFileSelect = (event) => {
+        if(event.target.files.length ===0 ) return
+        const errors = {...this.state.error}
+        errors.image = undefined;
+        const file = event.target.files[0];
+        let reader = new FileReader();
+        reader.onloadend = () =>{
+            this.setState({image:reader.result, errors})
+        }
+        reader.readAsDataURL(file);
     }
 
     onClickSave = () =>{
         const userId = this.props.loggedInUser.id;
         const userUpdate = {
-            displayName: this.state.user.displayName
+            displayName: this.state.user.displayName,
+            image: this.state.image && this.state.image.split(',')[1]
         }
         this.setState({pendingUpdateCall:true});
         apiCalls.updateUser(userId,userUpdate).then(response=>{
-            this.setState({editMode:false, originalDisplayname:undefined, pendingUpdateCall:false})
+            const user = {...this.state.user}
+            user.image = response.data.image;
+            this.setState({editMode:false, originalDisplayname:undefined, pendingUpdateCall:false, user, image:undefined})
         }).catch(error => {
-            this.setState({pendingUpdateCall:false});
+            let errors = {};
+            if(error.response.data.validationErrors){
+                
+                errors = error.response.data.validationErrors;
+            }
+            this.setState({pendingUpdateCall:false, errors});
         });
     }
 
@@ -52,7 +76,9 @@ class UserPage extends React.Component{
             originalDisplayname = user.displayName;
         }
         user.displayName = event.target.value;
-        this.setState({user, originalDisplayname});
+        const errors = {...this.state.errors}
+        errors.displayName= undefined
+        this.setState({user, originalDisplayname,errors});
     }
 
     loadUser = () => {
@@ -109,6 +135,9 @@ class UserPage extends React.Component{
                                                 onClickSave = {this.onClickSave}
                                                 onChangeDisplayName = {this.onChangeDisplayName}
                                                 pendingUpdateCall ={this.state.pendingUpdateCall}
+                                                loadedImage ={this.state.image}
+                                                onFileSelect = {this.onFileSelect}
+                                                errors={this.state.errors}
                                                 />
         }
         return(

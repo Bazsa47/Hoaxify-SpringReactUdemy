@@ -68,6 +68,12 @@
 			<artifactId>junit</artifactId>
 			<scope>test</scope>
 		</dependency>
+		<dependency>
+			<!--File type detecting library -->
+			<groupId>org.apache.tika</groupId>
+			<artifactId>tika-core</artifactId>
+			<version>1.22</version>
+		</dependency>
 
 		<dependency>
 			<groupId>commons-io</groupId>
